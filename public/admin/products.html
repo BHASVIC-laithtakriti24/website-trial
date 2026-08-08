@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="theme-color" content="#060F0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Products — Maison Lunar Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/admin/css/admin.css">
+<meta name="robots" content="noindex, nofollow">
+</head>
+<body>
+
+<div class="admin-shell">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <main class="admin-main">
+    <div class="admin-topbar">
+      <h1>Products</h1>
+      <button class="btn btn-primary btn-sm" id="newProductBtn">+ Add New Perfume</button>
+    </div>
+
+    <div class="admin-card glass">
+      <div class="toolbar">
+        <input type="search" id="productSearch" placeholder="Search products...">
+      </div>
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead><tr><th></th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Flags</th><th></th></tr></thead>
+          <tbody id="productsTbody"><tr><td colspan="7" style="color:var(--sage);">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Product editor modal -->
+<div class="modal-overlay" id="productModal">
+  <div class="modal-box">
+    <h2 id="modalTitle">Add New Perfume</h2>
+    <form id="productForm">
+      <input type="hidden" id="pId">
+      <div class="field-row">
+        <div class="field"><label for="pName">Product Name</label><input type="text" id="pName" required></div>
+        <div class="field"><label for="pCategory">Category</label>
+          <select id="pCategory">
+            <option value="unisex">Unisex</option>
+            <option value="mens">Men's</option>
+            <option value="womens">Women's</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label for="pShortDesc">Short Description</label><input type="text" id="pShortDesc" placeholder="One line shown on product cards"></div>
+      <div class="field"><label for="pDesc">Full Description</label><textarea id="pDesc"></textarea></div>
+      <div class="field-row">
+        <div class="field"><label for="pTop">Top Notes</label><input type="text" id="pTop" placeholder="Bergamot, Cardamom"></div>
+        <div class="field"><label for="pMiddle">Middle Notes</label><input type="text" id="pMiddle" placeholder="Jasmine, Oakmoss"></div>
+      </div>
+      <div class="field"><label for="pBase">Base Notes</label><input type="text" id="pBase" placeholder="Vetiver, Amber"></div>
+      <div class="field"><label for="pStock">Stock Quantity</label><input type="number" id="pStock" min="0" value="0"></div>
+
+      <div class="field">
+        <label>Product Image</label>
+        <div class="image-preview" id="imagePreview" style="display:none;"><img id="imagePreviewImg" alt=""></div>
+        <div class="image-drop" id="imageDrop">Click to upload a PNG, JPG, or WEBP (max 3MB)</div>
+        <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp" style="display:none;">
+        <div class="form-status" id="imageStatus"></div>
+      </div>
+
+      <div class="field">
+        <label>Sizes &amp; Prices</label>
+        <div class="size-manager" id="sizeManager"></div>
+        <button type="button" class="btn-icon" id="addSizeBtn">+ Add Size</button>
+      </div>
+
+      <div class="toggle-row">
+        <label><input type="checkbox" id="pFeatured"> Featured</label>
+        <label><input type="checkbox" id="pBestseller"> Best Seller</label>
+        <label><input type="checkbox" id="pNewArrival"> New Arrival</label>
+      </div>
+
+      <div class="form-status" id="productFormStatus"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="cancelModalBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="saveProductBtn">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/js/config.js"></script>
+<script src="/admin/js/admin-guard.js"></script>
+<script>
+(async function () {
+  const admin = await initAdminShell();
+  if (!admin) return;
+
+  let products = [];
+  let uploadedImageUrl = '';
+
+  async function load() {
+    const data = await adminApi('/api/admin/products');
+    products = data.products;
+    render(products);
+  }
+
+  function render(list) {
+    const tbody = document.getElementById('productsTbody');
+    if (list.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="color:var(--sage);">No products yet.</td></tr>'; return; }
+    tbody.innerHTML = list.map(p => {
+      const img = p.image_url ? `<img src="${p.image_url}">` : '';
+      const flags = [
+        p.is_featured ? 'Featured' : '', p.is_bestseller ? 'Best Seller' : '', p.is_new_arrival ? 'New' : ''
+      ].filter(Boolean).join(', ') || '&mdash;';
+      return `
+        <tr>
+          <td><div class="thumb">${img}</div></td>
+          <td>${p.name}</td>
+          <td style="text-transform:capitalize;">${p.category}</td>
+          <td>${adminFormatMoney(p.price_from_cents)}</td>
+          <td>${p.stock}</td>
+          <td style="font-size:11px; color:var(--sage);">${flags}</td>
+          <td style="white-space:nowrap;">
+            <button class="btn-icon" data-edit="${p.id}">Edit</button>
+            <button class="btn-icon" data-delete="${p.id}" style="color:var(--danger);">Delete</button>
+          </td>
+        </tr>`;
+    }).join('');
+
+    tbody.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => openModal(products.find(p => p.id == btn.dataset.edit))));
+    tbody.querySelectorAll('[data-delete]').forEach(btn => btn.addEventListener('click', () => deleteProduct(btn.dataset.delete)));
+  }
+
+  document.getElementById('productSearch').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    render(products.filter(p => p.name.toLowerCase().includes(q)));
+  });
+
+  // ---- modal ----
+  const modal = document.getElementById('productModal');
+  const form = document.getElementById('productForm');
+
+  function renderSizeRows(sizes) {
+    const manager = document.getElementById('sizeManager');
+    manager.innerHTML = sizes.map((s, i) => `
+      <div class="size-row" data-index="${i}">
+        <input type="text" class="size-label" placeholder="e.g. 50ml" value="${s.label || ''}">
+        <input type="number" class="size-price" placeholder="Price (£)" step="0.01" value="${s.price_cents != null ? (s.price_cents / 100).toFixed(2) : ''}">
+        <button type="button" class="remove-size" title="Remove size">&times;</button>
+      </div>`).join('');
+    manager.querySelectorAll('.remove-size').forEach(btn => btn.addEventListener('click', (e) => {
+      e.target.closest('.size-row').remove();
+    }));
+  }
+
+  document.getElementById('addSizeBtn').addEventListener('click', () => {
+    const manager = document.getElementById('sizeManager');
+    const div = document.createElement('div');
+    div.className = 'size-row';
+    div.innerHTML = `<input type="text" class="size-label" placeholder="e.g. 50ml"><input type="number" class="size-price" placeholder="Price (£)" step="0.01"><button type="button" class="remove-size">&times;</button>`;
+    div.querySelector('.remove-size').addEventListener('click', () => div.remove());
+    manager.appendChild(div);
+  });
+
+  function collectSizes() {
+    return Array.from(document.querySelectorAll('#sizeManager .size-row')).map(row => ({
+      label: row.querySelector('.size-label').value.trim(),
+      price_cents: Math.round(parseFloat(row.querySelector('.size-price').value || '0') * 100)
+    })).filter(s => s.label && s.price_cents > 0);
+  }
+
+  function openModal(product) {
+    document.getElementById('productFormStatus').className = 'form-status';
+    document.getElementById('productFormStatus').textContent = '';
+    uploadedImageUrl = product ? product.image_url : '';
+    document.getElementById('modalTitle').textContent = product ? 'Edit Perfume' : 'Add New Perfume';
+    document.getElementById('pId').value = product ? product.id : '';
+    document.getElementById('pName').value = product ? product.name : '';
+    document.getElementById('pCategory').value = product ? product.category : 'unisex';
+    document.getElementById('pShortDesc').value = product ? product.short_description : '';
+    document.getElementById('pDesc').value = product ? product.description : '';
+    document.getElementById('pTop').value = product ? product.top_notes : '';
+    document.getElementById('pMiddle').value = product ? product.middle_notes : '';
+    document.getElementById('pBase').value = product ? product.base_notes : '';
+    document.getElementById('pStock').value = product ? product.stock : 0;
+    document.getElementById('pFeatured').checked = product ? product.is_featured : false;
+    document.getElementById('pBestseller').checked = product ? product.is_bestseller : false;
+    document.getElementById('pNewArrival').checked = product ? product.is_new_arrival : false;
+    renderSizeRows(product && product.sizes.length ? product.sizes : [{ label: '', price_cents: null }]);
+
+    const preview = document.getElementById('imagePreview');
+    if (uploadedImageUrl) { preview.style.display = 'block'; document.getElementById('imagePreviewImg').src = uploadedImageUrl; }
+    else { preview.style.display = 'none'; }
+
+    modal.classList.add('open');
+  }
+
+  document.getElementById('newProductBtn').addEventListener('click', () => openModal(null));
+  document.getElementById('cancelModalBtn').addEventListener('click', () => modal.classList.remove('open'));
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('open'); });
+
+  // ---- image upload ----
+  document.getElementById('imageDrop').addEventListener('click', () => document.getElementById('imageInput').click());
+  document.getElementById('imageInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const statusEl = document.getElementById('imageStatus');
+    if (file.size > 3 * 1024 * 1024) { statusEl.className = 'form-status error'; statusEl.textContent = 'Image must be smaller than 3MB.'; return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        statusEl.className = 'form-status'; statusEl.textContent = 'Uploading...'; statusEl.style.display = 'block';
+        const result = await adminApi('/api/admin/upload-image', { method: 'POST', body: { dataUrl: reader.result } });
+        uploadedImageUrl = result.url;
+        document.getElementById('imagePreview').style.display = 'block';
+        document.getElementById('imagePreviewImg').src = uploadedImageUrl;
+        statusEl.className = 'form-status success'; statusEl.textContent = 'Image uploaded.';
+      } catch (err) {
+        statusEl.className = 'form-status error'; statusEl.textContent = err.message;
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // ---- save ----
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const statusEl = document.getElementById('productFormStatus');
+    const sizes = collectSizes();
+    if (!document.getElementById('pName').value.trim()) { statusEl.className = 'form-status error'; statusEl.textContent = 'Product name is required.'; return; }
+    if (sizes.length === 0) { statusEl.className = 'form-status error'; statusEl.textContent = 'Add at least one size with a price.'; return; }
+
+    const payload = {
+      name: document.getElementById('pName').value.trim(),
+      category: document.getElementById('pCategory').value,
+      short_description: document.getElementById('pShortDesc').value.trim(),
+      description: document.getElementById('pDesc').value.trim(),
+      top_notes: document.getElementById('pTop').value.trim(),
+      middle_notes: document.getElementById('pMiddle').value.trim(),
+      base_notes: document.getElementById('pBase').value.trim(),
+      stock: parseInt(document.getElementById('pStock').value, 10) || 0,
+      image_url: uploadedImageUrl,
+      sizes,
+      is_featured: document.getElementById('pFeatured').checked,
+      is_bestseller: document.getElementById('pBestseller').checked,
+      is_new_arrival: document.getElementById('pNewArrival').checked
+    };
+
+    const id = document.getElementById('pId').value;
+    const btn = document.getElementById('saveProductBtn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try {
+      if (id) await adminApi('/api/admin/products/' + id, { method: 'PUT', body: payload });
+      else await adminApi('/api/admin/products', { method: 'POST', body: payload });
+      modal.classList.remove('open');
+      await load();
+    } catch (err) {
+      statusEl.className = 'form-status error'; statusEl.textContent = err.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save Changes';
+    }
+  });
+
+  async function deleteProduct(id) {
+    if (!confirm('Delete this perfume? This cannot be undone.')) return;
+    await adminApi('/api/admin/products/' + id, { method: 'DELETE' });
+    load();
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>

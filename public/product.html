@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="theme-color" content="#060F0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Maison Lunar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/theme.css">
+<style>
+  .pd-hero{padding:150px 0 100px;}
+  .pd-grid{display:grid; grid-template-columns:1fr 1fr; gap:70px; align-items:start;}
+  .pd-image{aspect-ratio:4/5; border-radius:10px; background:linear-gradient(135deg, var(--g-700), var(--g-850)); display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;}
+  .pd-image img{width:100%; height:100%; object-fit:cover;}
+  .pd-image .ph-bottle{width:34%;}
+  .pd-cat{font-size:11px; letter-spacing:0.2em; text-transform:uppercase; color:var(--sage); margin-bottom:10px;}
+  .pd-name{font-size:clamp(1.9rem,3.4vw,2.6rem); margin-bottom:14px;}
+  .pd-price{color:var(--moon); font-size:20px; margin-bottom:22px;}
+  .pd-desc{color:var(--sage); font-size:15px; margin-bottom:30px;}
+  .pd-pyramid{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--glass-brd); border-radius:6px; overflow:hidden; margin-bottom:30px;}
+  .pd-tier{background:var(--g-850); padding:20px 14px; text-align:center;}
+  .pd-tier .lbl{font-size:9px; letter-spacing:0.2em; color:var(--moon); text-transform:uppercase;}
+  .pd-tier .val{font-family:var(--font-display); font-size:15px; margin-top:8px;}
+  .size-options{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:26px;}
+  .size-chip{padding:11px 18px; border:1px solid var(--glass-brd); border-radius:6px; font-size:13px; cursor:pointer; transition:all .2s;}
+  .size-chip.active{border-color:var(--moon); color:var(--moon); background:rgba(203,184,139,0.08);}
+  .qty-row{display:flex; align-items:center; gap:20px; margin-bottom:30px;}
+  .pd-actions{display:flex; gap:14px;}
+  .stock-note{font-size:12px; color:var(--sage); margin-top:14px;}
+  .related-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:22px; margin-top:24px;}
+  @media (max-width:860px){ .pd-grid{grid-template-columns:1fr;} .pd-hero{padding:130px 0 70px;} }
+</style>
+</head>
+<body>
+
+<header>
+  <nav class="nav">
+    <a href="/" class="brand"><svg class="moon-mark" viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" stroke="#CBB88B" stroke-width="1.3" stroke-linejoin="round"/></svg>MAISON LUNAR</a>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="/shop.html">Shop</a></li>
+      <li><a href="/#about">About</a></li>
+      <li><a href="/#contact">Contact</a></li>
+      <li id="navAuthSlot"><a href="/login.html">Login / Sign Up</a></li>
+      <li><a class="nav-cta nav-cart" href="/cart.html">Cart <span class="cart-count" style="display:none;">0</span></a></li>
+    </ul>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+  </nav>
+</header>
+
+<main>
+  <section class="pd-hero">
+    <div class="wrap">
+      <div class="pd-grid" id="pdRoot">
+        <p style="color:var(--sage)">Loading...</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="relatedSection" style="display:none; padding-top:0;">
+    <div class="wrap">
+      <div class="section-head reveal"><div class="eyebrow">You May Also Like</div><h2>Related Perfumes</h2></div>
+      <div class="related-grid" id="relatedGrid"></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-bottom" style="border:none; padding-top:0;">
+      <span>&copy; 2026 Maison Lunar. All rights reserved.</span>
+      <a href="/shop.html">Back to Shop</a>
+    </div>
+  </div>
+</footer>
+
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/nav.js"></script>
+<script>
+(async function () {
+  const slug = new URLSearchParams(location.search).get('slug');
+  const root = document.getElementById('pdRoot');
+  if (!slug) { root.innerHTML = '<p style="color:var(--sage)">No product specified.</p>'; return; }
+
+  let product, selectedSize, qty = 1;
+
+  try {
+    const data = await api('/api/products/' + encodeURIComponent(slug));
+    product = data.product;
+    selectedSize = product.sizes[0];
+    document.title = product.name + ' — Maison Lunar';
+    render();
+    if (data.related.length) {
+      document.getElementById('relatedSection').style.display = 'block';
+      document.getElementById('relatedGrid').innerHTML = data.related.map(relatedCard).join('');
+    }
+  } catch (e) {
+    root.innerHTML = `<p style="color:var(--sage)">${e.message}</p>`;
+  }
+
+  function relatedCard(p) {
+    const img = p.image_url ? `<img src="${p.image_url}" alt="${p.name}">` : bottleSvg();
+    return `<div class="product-card glass reveal in">
+      <div class="product-card-image">${img}</div>
+      <div class="product-card-body">
+        <div class="cat">${p.category}</div><h3>${p.name}</h3>
+        <div class="price">From ${formatMoney(p.price_from_cents)}</div>
+        <div class="product-card-actions"><a class="btn btn-ghost btn-full" href="/product.html?slug=${p.slug}">View</a></div>
+      </div>
+    </div>`;
+  }
+
+  function render() {
+    const img = product.image_url ? `<img src="${product.image_url}" alt="${product.name}">` : bottleSvg();
+    root.innerHTML = `
+      <div class="pd-image reveal in">${img}</div>
+      <div class="reveal in">
+        <div class="pd-cat">${product.category}</div>
+        <h1 class="pd-name">${product.name}</h1>
+        <div class="pd-price" id="pdPrice">${formatMoney(selectedSize.price_cents)}</div>
+        <p class="pd-desc">${product.description}</p>
+        <div class="pd-pyramid">
+          <div class="pd-tier"><div class="lbl">Top</div><div class="val">${product.top_notes}</div></div>
+          <div class="pd-tier"><div class="lbl">Heart</div><div class="val">${product.middle_notes}</div></div>
+          <div class="pd-tier"><div class="lbl">Base</div><div class="val">${product.base_notes}</div></div>
+        </div>
+        <label style="display:block; font-size:11px; letter-spacing:0.18em; text-transform:uppercase; color:var(--sage); margin-bottom:10px;">Size</label>
+        <div class="size-options" id="sizeOptions">
+          ${product.sizes.map((s, i) => `<div class="size-chip ${i === 0 ? 'active' : ''}" data-label="${s.label}" data-price="${s.price_cents}">${s.label}</div>`).join('')}
+        </div>
+        <div class="qty-row">
+          <div class="qty-control">
+            <button id="qtyMinus">&minus;</button><span id="qtyVal">1</span><button id="qtyPlus">+</button>
+          </div>
+          <span class="stock-note">${product.stock > 0 ? product.stock + ' in stock' : 'Out of stock'}</span>
+        </div>
+        <div class="pd-actions">
+          <button class="btn btn-primary" id="addToCartBtn" ${product.stock < 1 ? 'disabled' : ''}>Add to Cart</button>
+          <a class="btn btn-ghost" href="/shop.html">Continue Shopping</a>
+        </div>
+        <div class="form-status" id="pdStatus"></div>
+      </div>`;
+
+    document.getElementById('sizeOptions').addEventListener('click', (e) => {
+      const chip = e.target.closest('.size-chip');
+      if (!chip) return;
+      document.querySelectorAll('.size-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      selectedSize = { label: chip.dataset.label, price_cents: parseInt(chip.dataset.price, 10) };
+      document.getElementById('pdPrice').textContent = formatMoney(selectedSize.price_cents);
+    });
+
+    document.getElementById('qtyMinus').addEventListener('click', () => { qty = Math.max(1, qty - 1); document.getElementById('qtyVal').textContent = qty; });
+    document.getElementById('qtyPlus').addEventListener('click', () => { qty = Math.min(20, qty + 1); document.getElementById('qtyVal').textContent = qty; });
+
+    document.getElementById('addToCartBtn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('pdStatus');
+      try {
+        await api('/api/cart/items', { method: 'POST', body: { product_id: product.id, size_label: selectedSize.label, qty } });
+        statusEl.className = 'form-status success';
+        statusEl.textContent = `Added ${qty} \u00d7 ${product.name} (${selectedSize.label}) to your cart.`;
+        LunarNav.refreshCartCount();
+      } catch (e) {
+        statusEl.className = 'form-status error';
+        statusEl.textContent = e.message;
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>

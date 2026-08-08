@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="theme-color" content="#060F0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Appearance — Maison Lunar Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/admin/css/admin.css">
+<meta name="robots" content="noindex, nofollow">
+<style>
+  .color-row{display:flex; align-items:center; gap:14px;}
+  .color-row input[type="color"]{width:50px; height:40px; border:1px solid var(--glass-brd); border-radius:6px; background:none; padding:2px; cursor:pointer;}
+  .color-row input[type="text"]{flex:1;}
+</style>
+</head>
+<body>
+
+<div class="admin-shell">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <main class="admin-main">
+    <div class="admin-topbar"><h1>Appearance</h1><div class="who" id="adminWho"></div></div>
+
+    <form id="appearanceForm">
+      <div class="admin-card glass">
+        <h2>Colours</h2>
+        <div class="field">
+          <label>Main Accent Colour (moonlight gold)</label>
+          <div class="color-row"><input type="color" id="color_primary_picker"><input type="text" id="color_primary"></div>
+        </div>
+        <div class="field">
+          <label>Secondary Green</label>
+          <div class="color-row"><input type="color" id="color_secondary_picker"><input type="text" id="color_secondary"></div>
+        </div>
+        <div class="field">
+          <label>Background Green</label>
+          <div class="color-row"><input type="color" id="color_background_picker"><input type="text" id="color_background"></div>
+        </div>
+      </div>
+
+      <div class="admin-card glass">
+        <h2>Branding</h2>
+        <div class="field"><label for="site_title">Website Title</label><input type="text" id="site_title"></div>
+        <div class="field"><label for="logo_text">Logo Text (shown in nav &amp; footer)</label><input type="text" id="logo_text"></div>
+        <div class="field"><label for="favicon">Favicon (emoji)</label><input type="text" id="favicon" maxlength="2" style="max-width:100px;"></div>
+      </div>
+
+      <div class="admin-card glass">
+        <h2>Hero Image</h2>
+        <p style="font-size:12.5px; color:var(--sage); margin-bottom:14px;">Optional — leave empty to keep the illustrated moon/bottle hero.</p>
+        <div class="image-preview" id="heroPreview" style="display:none; width:140px; height:100px;"><img id="heroPreviewImg" alt=""></div>
+        <div class="image-drop" id="heroDrop">Click to upload a hero image (PNG/JPG/WEBP, max 3MB)</div>
+        <input type="file" id="heroInput" accept="image/png,image/jpeg,image/webp" style="display:none;">
+        <div class="form-status" id="heroStatus"></div>
+        <button type="button" class="btn-icon" id="clearHeroBtn" style="margin-top:10px;">Remove Hero Image</button>
+      </div>
+
+      <button type="submit" class="btn btn-primary" id="saveAppearanceBtn">Save Changes</button>
+      <div class="form-status" id="appearanceStatus"></div>
+    </form>
+  </main>
+</div>
+
+<script src="/js/config.js"></script>
+<script src="/admin/js/admin-guard.js"></script>
+<script>
+(async function () {
+  const admin = await initAdminShell();
+  if (!admin) return;
+
+  const { settings } = await adminApi('/api/admin/settings');
+  let heroImage = settings.hero_image || '';
+
+  document.getElementById('site_title').value = settings.site_title || '';
+  document.getElementById('logo_text').value = settings.logo_text || '';
+  document.getElementById('favicon').value = settings.favicon || '';
+  ['primary','secondary','background'].forEach(key => {
+    const val = settings['color_' + key] || '#000000';
+    document.getElementById('color_' + key).value = val;
+    document.getElementById('color_' + key + '_picker').value = val;
+  });
+  ['primary','secondary','background'].forEach(key => {
+    document.getElementById('color_' + key + '_picker').addEventListener('input', (e) => {
+      document.getElementById('color_' + key).value = e.target.value;
+    });
+    document.getElementById('color_' + key).addEventListener('input', (e) => {
+      if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) document.getElementById('color_' + key + '_picker').value = e.target.value;
+    });
+  });
+
+  if (heroImage) { document.getElementById('heroPreview').style.display = 'block'; document.getElementById('heroPreviewImg').src = heroImage; }
+
+  document.getElementById('heroDrop').addEventListener('click', () => document.getElementById('heroInput').click());
+  document.getElementById('heroInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const statusEl = document.getElementById('heroStatus');
+    if (file.size > 3 * 1024 * 1024) { statusEl.className = 'form-status error'; statusEl.textContent = 'Image must be smaller than 3MB.'; return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        statusEl.className = 'form-status'; statusEl.textContent = 'Uploading...'; statusEl.style.display = 'block';
+        const result = await adminApi('/api/admin/upload-image', { method: 'POST', body: { dataUrl: reader.result } });
+        heroImage = result.url;
+        document.getElementById('heroPreview').style.display = 'block';
+        document.getElementById('heroPreviewImg').src = heroImage;
+        statusEl.className = 'form-status success'; statusEl.textContent = 'Image uploaded.';
+      } catch (err) { statusEl.className = 'form-status error'; statusEl.textContent = err.message; }
+    };
+    reader.readAsDataURL(file);
+  });
+  document.getElementById('clearHeroBtn').addEventListener('click', () => {
+    heroImage = '';
+    document.getElementById('heroPreview').style.display = 'none';
+  });
+
+  document.getElementById('appearanceForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const statusEl = document.getElementById('appearanceStatus');
+    const btn = document.getElementById('saveAppearanceBtn');
+    const payload = {
+      site_title: document.getElementById('site_title').value.trim(),
+      logo_text: document.getElementById('logo_text').value.trim(),
+      favicon: document.getElementById('favicon').value.trim(),
+      color_primary: document.getElementById('color_primary').value.trim(),
+      color_secondary: document.getElementById('color_secondary').value.trim(),
+      color_background: document.getElementById('color_background').value.trim(),
+      hero_image: heroImage
+    };
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try {
+      await adminApi('/api/admin/settings', { method: 'PUT', body: payload });
+      statusEl.className = 'form-status success'; statusEl.textContent = 'Appearance updated — visible on the live site immediately.';
+    } catch (err) {
+      statusEl.className = 'form-status error'; statusEl.textContent = err.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save Changes';
+    }
+  });
+})();
+</script>
+</body>
+</html>

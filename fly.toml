@@ -1,0 +1,31 @@
+# Fly.io config. Deploy with:  fly launch --no-deploy   then  fly deploy
+# Set your app name below (must be globally unique on Fly).
+app = "maison-lunar"
+primary_region = "lhr"   # London — change to your nearest region
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
+
+# Persistent storage for the SQLite database and uploaded images.
+# Create it once with:  fly volumes create lunar_data --size 1
+[mounts]
+  source = "lunar_data"
+  destination = "/app/data"

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="theme-color" content="#060F0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Admin Login — Maison Lunar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/theme.css">
+<meta name="robots" content="noindex, nofollow">
+</head>
+<body>
+
+<main style="padding-top:0;">
+  <div class="auth-wrap" style="padding-top:110px;">
+    <div style="text-align:center; margin-bottom:34px;">
+      <a href="/" class="brand" style="justify-content:center; display:inline-flex;">
+        <svg class="moon-mark" viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" stroke="#CBB88B" stroke-width="1.3" stroke-linejoin="round"/></svg>
+        MAISON LUNAR
+      </a>
+      <div class="eyebrow" style="margin-top:10px;">Administrator Access</div>
+    </div>
+
+    <div class="auth-card glass">
+      <form id="adminLoginForm" novalidate>
+        <div class="field" data-field="email"><label for="aEmail">Email Address</label><input type="email" id="aEmail" required><div class="field-error">Please enter a valid email address.</div></div>
+        <div class="field" data-field="password">
+          <label for="aPassword">Password</label>
+          <div class="password-field">
+            <input type="password" id="aPassword" required>
+            <button type="button" class="password-toggle" id="aToggle">Show</button>
+          </div>
+          <div class="field-error">Please enter your password.</div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full" id="aSubmit">Sign In</button>
+        <div class="form-status" id="aStatus"></div>
+      </form>
+    </div>
+    <p style="text-align:center; font-size:12px; color:var(--sage); margin-top:20px;">This area is restricted to authorized administrators.</p>
+  </div>
+</main>
+
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script>
+(async function () {
+  // if already an authenticated admin, skip straight to the dashboard
+  try {
+    const res = await fetch((window.LUNAR_API_BASE||'') + '/api/admin/me', { credentials: 'include' });
+    const data = await res.json();
+    if (data.admin) { location.href = LUNAR_URL('/admin/dashboard.html'); return; }
+  } catch (e) {}
+
+  document.getElementById('aToggle').addEventListener('click', () => {
+    const input = document.getElementById('aPassword');
+    const showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    document.getElementById('aToggle').textContent = showing ? 'Show' : 'Hide';
+  });
+
+  const form = document.getElementById('adminLoginForm');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const statusEl = document.getElementById('aStatus');
+    const btn = document.getElementById('aSubmit');
+    const email = document.getElementById('aEmail').value.trim();
+    const password = document.getElementById('aPassword').value;
+
+    btn.disabled = true; btn.textContent = 'Signing in...';
+    statusEl.className = 'form-status'; statusEl.textContent = '';
+    try {
+      await api('/api/admin/login', { method: 'POST', body: { email, password } });
+      location.href = LUNAR_URL('/admin/dashboard.html');
+    } catch (err) {
+      statusEl.className = 'form-status error';
+      statusEl.textContent = err.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Sign In';
+    }
+  });
+})();
+</script>
+</body>
+</html>

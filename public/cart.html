@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="theme-color" content="#060F0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Your Cart — Maison Lunar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/theme.css">
+<style>
+  .cart-page{padding:150px 0 100px;}
+  #checkoutForm{margin-top:26px; display:none;}
+  #checkoutForm.open{display:block;}
+</style>
+</head>
+<body>
+
+<header>
+  <nav class="nav">
+    <a href="/" class="brand"><svg class="moon-mark" viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" stroke="#CBB88B" stroke-width="1.3" stroke-linejoin="round"/></svg>MAISON LUNAR</a>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="/shop.html">Shop</a></li>
+      <li><a href="/#about">About</a></li>
+      <li><a href="/#contact">Contact</a></li>
+      <li id="navAuthSlot"><a href="/login.html">Login / Sign Up</a></li>
+      <li><a class="nav-cta nav-cart" href="/cart.html">Cart <span class="cart-count" style="display:none;">0</span></a></li>
+    </ul>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+  </nav>
+</header>
+
+<main>
+  <section class="cart-page">
+    <div class="wrap">
+      <div class="section-head" style="text-align:left; margin-bottom:40px; max-width:none;">
+        <div class="eyebrow">Your Selection</div>
+        <h1 style="font-family:var(--font-display); font-weight:500; font-size:clamp(1.8rem,3.4vw,2.4rem); margin-top:12px;">Shopping Cart</h1>
+      </div>
+
+      <div id="cartRoot"><p style="color:var(--sage)">Loading...</p></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-bottom" style="border:none; padding-top:0;">
+      <span>&copy; 2026 Maison Lunar. All rights reserved.</span>
+      <a href="/shop.html">Continue Shopping</a>
+    </div>
+  </div>
+</footer>
+
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/nav.js"></script>
+<script>
+(async function () {
+  const root = document.getElementById('cartRoot');
+
+  async function load() {
+    const cart = await api('/api/cart');
+    render(cart);
+  }
+
+  function render(cart) {
+    if (cart.items.length === 0) {
+      root.innerHTML = `
+        <div class="empty-state glass" style="border-radius:10px;">
+          <h3>Your cart is empty</h3>
+          <p style="margin-bottom:26px;">Explore the collection and find something you'll want to wear.</p>
+          <a class="btn btn-primary" href="/shop.html">Browse Perfumes</a>
+        </div>`;
+      return;
+    }
+
+    root.innerHTML = `
+      <div class="cart-grid">
+        <div class="cart-items glass" style="border-radius:10px; padding:10px 26px;">
+          ${cart.items.map(itemRow).join('')}
+        </div>
+        <div>
+          <div class="cart-summary glass" style="border-radius:10px;">
+            <div class="summary-row"><span>Subtotal</span><span>${formatMoney(cart.subtotal_cents)}</span></div>
+            <div class="summary-row"><span>Shipping</span><span>Calculated at dispatch</span></div>
+            <div class="summary-row total"><span>Total</span><span>${formatMoney(cart.total_cents)}</span></div>
+            <button class="btn btn-primary btn-full" id="checkoutToggle" style="margin-top:20px;">Proceed to Checkout</button>
+            <a class="btn btn-ghost btn-full" href="/shop.html" style="margin-top:12px;">Continue Shopping</a>
+
+            <form id="checkoutForm">
+              <div class="field"><label for="coName">Full Name</label><input type="text" id="coName" required></div>
+              <div class="field"><label for="coEmail">Email</label><input type="email" id="coEmail" required></div>
+              <div class="field"><label for="coAddress">Shipping Address</label><textarea id="coAddress" required></textarea></div>
+              <button type="submit" class="btn btn-primary btn-full" id="placeOrderBtn">Place Order</button>
+              <div class="form-status" id="checkoutStatus"></div>
+            </form>
+          </div>
+        </div>
+      </div>`;
+
+    document.getElementById('checkoutToggle').addEventListener('click', () => {
+      document.getElementById('checkoutForm').classList.toggle('open');
+    });
+
+    document.querySelectorAll('[data-qty-btn]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.itemId;
+        const delta = parseInt(btn.dataset.qtyBtn, 10);
+        const current = parseInt(btn.closest('.cart-item').querySelector('.qty-control span').textContent, 10);
+        const next = current + delta;
+        const updated = await api('/api/cart/items/' + id, { method: 'PATCH', body: { qty: next } });
+        render(updated);
+        LunarNav.refreshCartCount();
+      });
+    });
+
+    document.querySelectorAll('.cart-remove').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const updated = await api('/api/cart/items/' + btn.dataset.itemId, { method: 'DELETE' });
+        render(updated);
+        LunarNav.refreshCartCount();
+      });
+    });
+
+    const checkoutForm = document.getElementById('checkoutForm');
+    checkoutForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const statusEl = document.getElementById('checkoutStatus');
+      const btn = document.getElementById('placeOrderBtn');
+      btn.disabled = true; btn.textContent = 'Placing order...';
+      try {
+        const result = await api('/api/cart/checkout', {
+          method: 'POST',
+          body: {
+            customer_name: document.getElementById('coName').value.trim(),
+            customer_email: document.getElementById('coEmail').value.trim(),
+            shipping_address: document.getElementById('coAddress').value.trim()
+          }
+        });
+        statusEl.className = 'form-status success';
+        statusEl.textContent = `Order placed! Confirmation number: ${result.order_number}. A confirmation email has been sent.`;
+        checkoutForm.reset();
+        LunarNav.refreshCartCount();
+        setTimeout(load, 1600);
+      } catch (err) {
+        statusEl.className = 'form-status error';
+        statusEl.textContent = err.message;
+      } finally {
+        btn.disabled = false; btn.textContent = 'Place Order';
+      }
+    });
+  }
+
+  function itemRow(item) {
+    const img = item.image_url ? `<img src="${item.image_url}" alt="${item.name}">` : bottleSvg();
+    return `
+      <div class="cart-item">
+        <div class="cart-item-img">${img}</div>
+        <div>
+          <div class="cart-item-name">${item.name}</div>
+          <div class="cart-item-meta">${item.size_label} &middot; ${formatMoney(item.unit_price_cents)} each</div>
+          <button class="cart-remove" data-item-id="${item.id}">Remove</button>
+        </div>
+        <div class="qty-control">
+          <button data-qty-btn="-1" data-item-id="${item.id}">&minus;</button>
+          <span>${item.qty}</span>
+          <button data-qty-btn="1" data-item-id="${item.id}">+</button>
+        </div>
+        <div class="cart-item-price">${formatMoney(item.unit_price_cents * item.qty)}</div>
+      </div>`;
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>

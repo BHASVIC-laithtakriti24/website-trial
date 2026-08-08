@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="theme-color" content="#060F0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Messages — Maison Lunar Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/admin/css/admin.css">
+<meta name="robots" content="noindex, nofollow">
+<style>
+  .inbox-grid{display:grid; grid-template-columns:340px 1fr; gap:24px; align-items:start;}
+  .inbox-list{max-height:70vh; overflow-y:auto; padding-right:6px;}
+  .msg-detail{min-height:200px;}
+  @media (max-width:1000px){ .inbox-grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<div class="admin-shell">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <main class="admin-main">
+    <div class="admin-topbar"><h1>Messages</h1><div class="who" id="adminWho"></div></div>
+
+    <div class="inbox-grid">
+      <div class="admin-card glass inbox-list" id="msgList"><p style="color:var(--sage);">Loading...</p></div>
+      <div class="admin-card glass msg-detail" id="msgDetail"><p style="color:var(--sage);">Select a message to read it.</p></div>
+    </div>
+  </main>
+</div>
+
+<script src="/js/config.js"></script>
+<script src="/admin/js/admin-guard.js"></script>
+<script>
+(async function () {
+  const admin = await initAdminShell();
+  if (!admin) return;
+
+  let messages = [];
+  let activeId = null;
+
+  async function load() {
+    const data = await adminApi('/api/admin/messages');
+    messages = data.messages;
+    renderList();
+    if (activeId) renderDetail(messages.find(m => m.id === activeId));
+  }
+
+  function renderList() {
+    const list = document.getElementById('msgList');
+    if (messages.length === 0) { list.innerHTML = '<p style="color:var(--sage);">No messages yet.</p>'; return; }
+    list.innerHTML = messages.map(m => `
+      <div class="msg-item ${m.is_read ? '' : 'unread'}" data-id="${m.id}">
+        <div class="top-row"><span>${m.name}</span><span>${formatDate(m.created_at)}</span></div>
+        <div class="subject">${m.subject}</div>
+      </div>`).join('');
+    list.querySelectorAll('.msg-item').forEach(el => el.addEventListener('click', () => openMessage(parseInt(el.dataset.id, 10))));
+  }
+
+  async function openMessage(id) {
+    activeId = id;
+    const msg = messages.find(m => m.id === id);
+    if (!msg.is_read) {
+      await adminApi('/api/admin/messages/' + id, { method: 'PATCH', body: { is_read: true } });
+      msg.is_read = true;
+      renderList();
+    }
+    renderDetail(msg);
+  }
+
+  function renderDetail(msg) {
+    if (!msg) return;
+    document.getElementById('msgDetail').innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:18px;">
+        <div>
+          <h2 style="margin-bottom:6px;">${msg.subject}</h2>
+          <p style="font-size:13px; color:var(--sage);">${msg.name} &middot; <a href="mailto:${msg.email}" style="color:var(--moon);">${msg.email}</a></p>
+          <p style="font-size:11px; color:var(--sage); margin-top:4px;">${formatDateTime(msg.created_at)}</p>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-icon" id="toggleReadBtn">${msg.is_read ? 'Mark Unread' : 'Mark Read'}</button>
+          <button class="btn-icon" id="deleteMsgBtn" style="color:var(--danger);">Delete</button>
+        </div>
+      </div>
+      <p style="font-size:14.5px; line-height:1.7; white-space:pre-wrap;">${msg.message}</p>`;
+
+    document.getElementById('toggleReadBtn').addEventListener('click', async () => {
+      await adminApi('/api/admin/messages/' + msg.id, { method: 'PATCH', body: { is_read: !msg.is_read } });
+      load();
+    });
+    document.getElementById('deleteMsgBtn').addEventListener('click', async () => {
+      if (!confirm('Delete this message?')) return;
+      await adminApi('/api/admin/messages/' + msg.id, { method: 'DELETE' });
+      activeId = null;
+      document.getElementById('msgDetail').innerHTML = '<p style="color:var(--sage);">Select a message to read it.</p>';
+      load();
+    });
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="theme-color" content="#060F0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Orders — Maison Lunar Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/admin/css/admin.css">
+<meta name="robots" content="noindex, nofollow">
+</head>
+<body>
+
+<div class="admin-shell">
+  <aside class="admin-sidebar" id="adminSidebar"></aside>
+  <main class="admin-main">
+    <div class="admin-topbar"><h1>Orders</h1><div class="who" id="adminWho"></div></div>
+
+    <div class="admin-card glass">
+      <div class="toolbar">
+        <input type="search" id="orderSearch" placeholder="Search order #, name, or email...">
+        <select id="statusFilter">
+          <option value="">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="processing">Processing</option>
+          <option value="shipped">Shipped</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Status</th><th>Date</th><th></th></tr></thead>
+          <tbody id="ordersTbody"><tr><td colspan="6" style="color:var(--sage);">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="orderModal">
+  <div class="modal-box">
+    <h2>Order Details</h2>
+    <div id="orderDetail"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="closeOrderModal">Close</button></div>
+  </div>
+</div>
+
+<script src="/js/config.js"></script>
+<script src="/admin/js/admin-guard.js"></script>
+<script>
+(async function () {
+  const admin = await initAdminShell();
+  if (!admin) return;
+
+  async function load() {
+    const params = new URLSearchParams();
+    const search = document.getElementById('orderSearch').value.trim();
+    const status = document.getElementById('statusFilter').value;
+    if (search) params.set('search', search);
+    if (status) params.set('status', status);
+    const { orders } = await adminApi('/api/admin/orders?' + params.toString());
+    render(orders);
+  }
+
+  function render(orders) {
+    const tbody = document.getElementById('ordersTbody');
+    if (orders.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="color:var(--sage);">No orders found.</td></tr>'; return; }
+    tbody.innerHTML = orders.map(o => `
+      <tr>
+        <td>${o.order_number}</td>
+        <td>${o.customer_name}<br><span style="color:var(--sage); font-size:11px;">${o.customer_email}</span></td>
+        <td>${adminFormatMoney(o.total_cents)}</td>
+        <td><span class="status-pill ${o.status}">${o.status}</span></td>
+        <td>${formatDate(o.created_at)}</td>
+        <td><button class="btn-icon" data-view="${o.id}">View</button></td>
+      </tr>`).join('');
+    tbody.querySelectorAll('[data-view]').forEach(btn => btn.addEventListener('click', () => viewOrder(btn.dataset.view)));
+  }
+
+  async function viewOrder(id) {
+    const { order, items } = await adminApi('/api/admin/orders/' + id);
+    document.getElementById('orderDetail').innerHTML = `
+      <p style="font-size:13px; color:var(--sage); margin-bottom:6px;">Order ${order.order_number} &middot; ${formatDateTime(order.created_at)}</p>
+      <p style="margin-bottom:4px;"><strong>${order.customer_name}</strong> &middot; ${order.customer_email}</p>
+      <p style="font-size:13px; color:var(--sage); margin-bottom:18px;">${order.shipping_address || 'No address provided'}</p>
+      <div class="table-wrap"><table class="admin-table">
+        <thead><tr><th>Product</th><th>Size</th><th>Qty</th><th>Price</th></tr></thead>
+        <tbody>${items.map(i => `<tr><td>${i.product_name}</td><td>${i.size_label}</td><td>${i.qty}</td><td>${adminFormatMoney(i.unit_price_cents * i.qty)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <p style="text-align:right; margin-top:14px; font-family:var(--font-display); font-size:18px;">Total: ${adminFormatMoney(order.total_cents)}</p>
+      <div class="field" style="margin-top:20px;">
+        <label for="statusSelect">Update Status</label>
+        <select id="statusSelect">
+          ${['pending','processing','shipped','completed','cancelled'].map(s => `<option value="${s}" ${s === order.status ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn btn-primary" id="updateStatusBtn" data-id="${order.id}">Update Status</button>
+      <div class="form-status" id="statusUpdateResult"></div>`;
+
+    document.getElementById('updateStatusBtn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('statusUpdateResult');
+      try {
+        await adminApi('/api/admin/orders/' + order.id, { method: 'PATCH', body: { status: document.getElementById('statusSelect').value } });
+        statusEl.className = 'form-status success'; statusEl.textContent = 'Order status updated.';
+        load();
+      } catch (err) {
+        statusEl.className = 'form-status error'; statusEl.textContent = err.message;
+      }
+    });
+
+    document.getElementById('orderModal').classList.add('open');
+  }
+
+  document.getElementById('closeOrderModal').addEventListener('click', () => document.getElementById('orderModal').classList.remove('open'));
+  document.getElementById('orderModal').addEventListener('click', (e) => { if (e.target.id === 'orderModal') e.target.classList.remove('open'); });
+
+  let t;
+  document.getElementById('orderSearch').addEventListener('input', () => { clearTimeout(t); t = setTimeout(load, 300); });
+  document.getElementById('statusFilter').addEventListener('change', load);
+
+  load();
+})();
+</script>
+</body>
+</html>

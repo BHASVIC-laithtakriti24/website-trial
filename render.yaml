@@ -1,0 +1,30 @@
+# Render.com blueprint. With this file in your repo you can deploy by going to
+# Render -> New -> Blueprint and pointing it at your GitHub repository.
+#
+# IMPORTANT: the free plan does NOT support persistent disks, so on free the
+# SQLite database resets whenever the service restarts or redeploys. The disk
+# block below requires a paid instance type. For a free trial run, delete the
+# `disk:` section — everything works, data just isn't durable.
+services:
+  - type: web
+    name: maison-lunar
+    runtime: node
+    plan: starter
+    buildCommand: "echo 'no dependencies to install'"
+    startCommand: "node server/server.js"
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 22.11.0
+      - key: NODE_ENV
+        value: production
+      # Add your Resend key in the Render dashboard (Environment tab).
+      # Never commit the real value to the repo.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: "Maison Lunar <onboarding@resend.dev>"
+    disk:
+      name: lunar-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="theme-color" content="#060F0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Shop — Maison Lunar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/theme.css">
+<style>
+  .shop-hero{padding:150px 0 40px; text-align:center;}
+  .shop-hero .eyebrow{display:block; margin-bottom:14px;}
+  .search-row{max-width:420px; margin:36px auto 0;}
+  .search-row input{width:100%; background:rgba(255,255,255,0.03); border:1px solid var(--glass-brd); border-radius:30px; padding:13px 20px; color:var(--mist); font-size:14px;}
+  .search-row input:focus{outline:none; border-color:var(--moon);}
+  .empty-note{grid-column:1/-1; text-align:center; color:var(--sage); padding:60px 0;}
+</style>
+</head>
+<body>
+
+<header>
+  <nav class="nav">
+    <a href="/" class="brand"><svg class="moon-mark" viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" stroke="#CBB88B" stroke-width="1.3" stroke-linejoin="round"/></svg>MAISON LUNAR</a>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="/shop.html">Shop</a></li>
+      <li><a href="/#about">About</a></li>
+      <li><a href="/#contact">Contact</a></li>
+      <li id="navAuthSlot"><a href="/login.html">Login / Sign Up</a></li>
+      <li><a class="nav-cta nav-cart" href="/cart.html">Cart <span class="cart-count" style="display:none;">0</span></a></li>
+    </ul>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+  </nav>
+</header>
+
+<main>
+  <section class="shop-hero">
+    <div class="wrap-narrow">
+      <span class="eyebrow">The Collection</span>
+      <h1 style="font-size:clamp(2rem,4vw,2.8rem);">Every Bottle We Make</h1>
+      <div class="search-row"><input type="search" id="searchInput" placeholder="Search perfumes..."></div>
+    </div>
+  </section>
+
+  <section style="padding-top:30px;">
+    <div class="wrap">
+      <div class="filter-bar" id="filterBar">
+        <button class="filter-chip active" data-filter="all">All</button>
+        <button class="filter-chip" data-filter="mens">Men's</button>
+        <button class="filter-chip" data-filter="womens">Women's</button>
+        <button class="filter-chip" data-filter="unisex">Unisex</button>
+        <button class="filter-chip" data-filter="bestseller">Best Sellers</button>
+        <button class="filter-chip" data-filter="new">New Arrivals</button>
+      </div>
+      <div class="product-grid" id="productGrid"></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-bottom" style="border:none; padding-top:0;">
+      <span>&copy; 2026 Maison Lunar. All rights reserved.</span>
+      <a href="/">Back to Home</a>
+    </div>
+  </div>
+</footer>
+
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/nav.js"></script>
+<script>
+(async function () {
+  let allProducts = [];
+  let currentFilter = 'all';
+  let currentSearch = '';
+
+  async function load() {
+    const params = new URLSearchParams();
+    if (currentSearch) params.set('search', currentSearch);
+    if (currentFilter === 'mens' || currentFilter === 'womens' || currentFilter === 'unisex') params.set('category', currentFilter);
+    if (currentFilter === 'bestseller') params.set('bestseller', '1');
+    if (currentFilter === 'new') params.set('new', '1');
+    const { products } = await api('/api/products?' + params.toString());
+    render(products);
+  }
+
+  function render(products) {
+    const grid = document.getElementById('productGrid');
+    if (products.length === 0) {
+      grid.innerHTML = '<p class="empty-note">No perfumes match this filter yet.</p>';
+      return;
+    }
+    grid.innerHTML = products.map(p => {
+      const badges = [
+        p.is_bestseller ? '<span class="badge">Best Seller</span>' : '',
+        p.is_new_arrival ? '<span class="badge">New</span>' : ''
+      ].join('');
+      const img = p.image_url ? `<img src="${p.image_url}" alt="${p.name}">` : bottleSvg();
+      const outOfStock = p.stock < 1;
+      return `
+        <div class="product-card glass reveal in">
+          <div class="product-card-image">${img}<div class="badge-row">${badges}</div></div>
+          <div class="product-card-body">
+            <div class="cat">${p.category}</div>
+            <h3>${p.name}</h3>
+            <p class="desc">${p.short_description}</p>
+            <div class="price">From ${formatMoney(p.price_from_cents)}</div>
+            <div class="product-card-actions">
+              <a class="btn btn-ghost" href="/product.html?slug=${p.slug}">View Details</a>
+              <button class="btn btn-primary" ${outOfStock ? 'disabled' : ''} onclick="addToCart(${p.id}, '${p.sizes[0].label}', event)">${outOfStock ? 'Out of Stock' : 'Add to Cart'}</button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  window.addToCart = async function (productId, sizeLabel, evt) {
+    const btn = evt.target; const original = btn.textContent;
+    btn.disabled = true;
+    try {
+      await api('/api/cart/items', { method: 'POST', body: { product_id: productId, size_label: sizeLabel, qty: 1 } });
+      btn.textContent = 'Added \u2713';
+      LunarNav.refreshCartCount();
+      setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1400);
+    } catch (e) { alert(e.message); btn.disabled = false; }
+  };
+
+  document.getElementById('filterBar').addEventListener('click', (e) => {
+    const chip = e.target.closest('.filter-chip');
+    if (!chip) return;
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    currentFilter = chip.dataset.filter;
+    load();
+  });
+
+  let searchTimeout;
+  document.getElementById('searchInput').addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => { currentSearch = e.target.value.trim(); load(); }, 300);
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>

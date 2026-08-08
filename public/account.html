@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="theme-color" content="#060F0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>My Account — Maison Lunar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/theme.css">
+<style>
+  .account-page{padding:150px 0 100px;}
+  .profile-row{display:flex; align-items:center; gap:16px; margin-bottom:30px; padding-bottom:26px; border-bottom:1px solid var(--glass-brd);}
+  .profile-avatar{width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg, var(--g-600), var(--g-800)); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-size:22px; color:var(--moon); border:1px solid var(--glass-brd);}
+</style>
+</head>
+<body>
+
+<header>
+  <nav class="nav">
+    <a href="/" class="brand"><svg class="moon-mark" viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" stroke="#CBB88B" stroke-width="1.3" stroke-linejoin="round"/></svg>MAISON LUNAR</a>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="/shop.html">Shop</a></li>
+      <li><a href="/#about">About</a></li>
+      <li><a href="/#contact">Contact</a></li>
+      <li id="navAuthSlot"><a href="/login.html">Login / Sign Up</a></li>
+      <li><a class="nav-cta nav-cart" href="/cart.html">Cart <span class="cart-count" style="display:none;">0</span></a></li>
+    </ul>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+  </nav>
+</header>
+
+<main>
+  <section class="account-page">
+    <div class="wrap" id="accountRoot">
+      <p style="color:var(--sage)">Loading...</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-bottom" style="border:none; padding-top:0;">
+      <span>&copy; 2026 Maison Lunar. All rights reserved.</span>
+      <a href="/shop.html">Continue Shopping</a>
+    </div>
+  </div>
+</footer>
+
+<script src="/js/config.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/nav.js"></script>
+<script>
+(async function () {
+  const root = document.getElementById('accountRoot');
+  let user;
+  try {
+    const data = await api('/api/auth/me');
+    if (!data.user) { location.href = LUNAR_URL('/login.html'); return; }
+    user = data.user;
+  } catch (e) { location.href = LUNAR_URL('/login.html'); return; }
+
+  root.innerHTML = `
+    <div class="account-grid">
+      <div>
+        <div class="profile-row">
+          <div class="profile-avatar">${user.full_name[0]}</div>
+          <div>
+            <div style="font-family:var(--font-display); font-size:18px;">${user.full_name}</div>
+            <div style="font-size:12px; color:var(--sage);">${user.email}</div>
+          </div>
+        </div>
+        <nav class="account-nav">
+          <a href="/shop.html">Continue Shopping</a>
+          <a href="/cart.html">View Cart</a>
+          <button id="logoutBtn">Log Out</button>
+        </nav>
+      </div>
+      <div>
+        <div class="glass" style="border-radius:10px; padding:30px; margin-bottom:26px;">
+          <div class="eyebrow" style="margin-bottom:14px;">Profile</div>
+          <div class="fact" style="padding:10px 0; border-bottom:1px solid var(--glass-brd);"><dt style="font-size:10px; letter-spacing:0.18em; text-transform:uppercase; color:var(--moon);">Full Name</dt><dd style="margin-top:4px;">${user.full_name}</dd></div>
+          <div class="fact" style="padding:10px 0; border-bottom:1px solid var(--glass-brd);"><dt style="font-size:10px; letter-spacing:0.18em; text-transform:uppercase; color:var(--moon);">Email</dt><dd style="margin-top:4px;">${user.email}</dd></div>
+          <div class="fact" style="padding:10px 0;"><dt style="font-size:10px; letter-spacing:0.18em; text-transform:uppercase; color:var(--moon);">Member Since</dt><dd style="margin-top:4px;">${formatDate(user.created_at, { year: 'numeric', month: 'long', day: 'numeric' })}</dd></div>
+        </div>
+
+        <div class="glass" style="border-radius:10px; padding:30px;">
+          <div class="eyebrow" style="margin-bottom:14px;">Order History</div>
+          <div id="orderList"><p style="color:var(--sage); font-size:14px;">Loading orders...</p></div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await api('/api/auth/logout', { method: 'POST' });
+    location.href = LUNAR_URL('/');
+  });
+
+  try {
+    const { orders } = await api('/api/orders/mine');
+    const orderList = document.getElementById('orderList');
+    if (orders.length === 0) {
+      orderList.innerHTML = `<p style="color:var(--sage); font-size:14px;">No orders yet — orders you place while logged in will appear here.</p>`;
+    } else {
+      orderList.innerHTML = orders.map(o => `
+        <div class="order-row">
+          <div>
+            <div style="font-size:13px;">${o.order_number}</div>
+            <div style="font-size:11px; color:var(--sage); margin-top:3px;">${formatDate(o.created_at)} &middot; ${o.items.length} item${o.items.length === 1 ? '' : 's'}</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:16px;">
+            <span>${formatMoney(o.total_cents)}</span>
+            <span class="status-pill ${o.status}">${o.status}</span>
+          </div>
+        </div>`).join('');
+    }
+  } catch (e) {
+    document.getElementById('orderList').innerHTML = `<p style="color:var(--sage); font-size:14px;">Could not load order history.</p>`;
+  }
+})();
+</script>
+</body>
+</html>
