@@ -1353,6 +1353,8 @@ footer{background:var(--g-950); border-top:1px solid var(--glass-brd); padding:5
       $('[data-f="lemail"]').classList.toggle('invalid', !validEmail(email));
       $('[data-f="lpw"]').classList.toggle('invalid', !pw);
       if (!validEmail(email) || !pw) return;
+      db = loadDb();
+      await ensurePasswords();
       const user = db.users.find(u => u.email === email.toLowerCase());
       if (!user || user.pw !== await hash(pw)) { st.className = 'form-status error'; st.textContent = 'Invalid email or password.'; return; }
       if (!user.is_active) { st.className = 'form-status error'; st.textContent = 'This account has been disabled.'; return; }
@@ -1448,6 +1450,14 @@ footer{background:var(--g-950); border-top:1px solid var(--glass-brd); padding:5
       e.preventDefault();
       const st = $('#aStatus');
       const email = $('#aEmail').value.trim(), pw = $('#aPw').value;
+      // Re-sync from storage and re-check for any not-yet-hashed seed passwords
+      // right before comparing. This is a defensive fix for a real (if rare) bug:
+      // if two tabs of this page are open, one can persist a stale snapshot of
+      // the database over another tab's fix, leaving a seeded password
+      // unhashed. Redoing this check at login time makes it self-healing
+      // instead of leaving the account permanently unable to log in.
+      db = loadDb();
+      await ensurePasswords();
       const user = db.users.find(u => u.email === email.toLowerCase() && u.is_admin);
       if (!user || user.pw !== await hash(pw)) { st.className = 'form-status error'; st.textContent = 'Invalid credentials.'; return; }
       if (!user.is_active) { st.className = 'form-status error'; st.textContent = 'This admin account is disabled.'; return; }
